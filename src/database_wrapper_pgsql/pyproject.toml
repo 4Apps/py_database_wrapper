@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "database_wrapper_pgsql"
-version = "0.2.33"
+version = "0.2.34"
 description = "database_wrapper for PostgreSQL database"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -33,7 +33,7 @@ classifiers = [
 ]
 keywords = ["database", "wrapper", "python", "postgresql", "pgsql"]
 dependencies = [
-    "database_wrapper == 0.2.33",
+    "database_wrapper == 0.2.34",
     "psycopg[binary] >= 3.2.0",
     "psycopg[pool] >= 3.2.0",
 ]
