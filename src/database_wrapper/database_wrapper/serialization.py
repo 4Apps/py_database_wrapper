@@ -18,8 +18,10 @@ def json_encoder(obj: Any) -> Any:
     if isinstance(obj, Decimal):
         return float(obj)
 
-    if isinstance(obj, datetime.date) or isinstance(obj, datetime.datetime):
-        return obj.strftime("%Y-%m-%dT%H:%M:%S")
+    # isoformat preserves timezone offset and sub-second precision;
+    # plain dates render as date-only strings
+    if isinstance(obj, (datetime.datetime, datetime.date)):
+        return obj.isoformat()
 
     if isinstance(obj, Enum):
         return obj.value
@@ -31,6 +33,11 @@ def json_encoder(obj: Any) -> Any:
 
 
 def serialize_value(value: Any, s_type: SerializeType) -> Any:
+    # None always serializes to SQL NULL - otherwise nullable enum fields crash
+    # on .value and JSON fields store the string 'null' instead of NULL
+    if value is None:
+        return None
+
     if s_type == SerializeType.DATETIME:
         if not isinstance(value, datetime.datetime):
             return value
@@ -64,6 +71,9 @@ def deserialize_value(
     timezone: str | datetime.tzinfo | None = None,
 ) -> Any:
     if s_type == SerializeType.DATETIME:
+        if timezone is not None and isinstance(timezone, str):
+            timezone = ZoneInfo(timezone)
+
         if isinstance(value, datetime.datetime):
             return value
 
@@ -73,12 +83,13 @@ def deserialize_value(
             if timestamp > 1e10:  # Check if timestamp is in milliseconds
                 timestamp /= 1000
 
-            if timezone is not None and isinstance(timezone, str):
-                timezone = ZoneInfo(timezone)
-
             return datetime.datetime.fromtimestamp(timestamp, tz=timezone)
 
-        return datetime.datetime.fromisoformat(value)
+        parsed = datetime.datetime.fromisoformat(value)
+        if timezone is not None and parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone)
+
+        return parsed
 
     if s_type == SerializeType.DATE:
         if isinstance(value, datetime.date):

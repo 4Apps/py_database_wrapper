@@ -1,7 +1,9 @@
+import asyncio
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
 from typing import Any, NotRequired, TypedDict, cast
+from urllib.parse import quote
 
 from psycopg import AsyncConnection as PgConnectionAsync  # Async
 from psycopg import AsyncCursor as PgCursorAsync
@@ -381,8 +383,10 @@ class PgsqlWithPooling(DatabaseBackend):
             self.config["pool_kwargs"] = {}
 
         conn_str = (
-            f"postgresql://{self.config['username']}:{self.config['password']}@{self.config['hostname']}:{self.config['port']}"
-            f"/{self.config['database']}?connect_timeout={self.connection_timeout}&application_name={self.name}"
+            f"postgresql://{quote(self.config['username'])}:{quote(self.config['password'])}"
+            f"@{self.config['hostname']}:{self.config['port']}"
+            f"/{quote(self.config['database'])}?connect_timeout={self.connection_timeout}"
+            f"&application_name={quote(self.name)}"
             f"&sslmode={self.config['ssl']}"
         )
         self.pool = ConnectionPool(
@@ -427,8 +431,29 @@ class PgsqlWithPooling(DatabaseBackend):
 
         # Create new connection
         res = self.new_connection()
-        if res:
-            (self.connection, self.cursor) = res
+        if not res:
+            raise ConnectionError("Failed to get a connection from the pool")
+
+        (self.connection, self.cursor) = res
+
+    def close(self) -> None:
+        """Close connection by returning it to the pool"""
+        try:
+            if self.cursor:
+                self.logger.debug("Closing cursor")
+                self.cursor.close()
+        except Exception as e:
+            self.logger.debug(f"Error while closing cursor: {e}")
+        finally:
+            self.cursor = None
+
+        if self.connection:
+            connection = self.connection
+            self.connection = None
+            try:
+                self.return_connection(connection)
+            except Exception as e:
+                self.logger.debug(f"Error while returning connection to the pool: {e}")
 
     def new_connection(
         self,
@@ -648,8 +673,10 @@ class PgsqlWithPoolingAsync(DatabaseBackend):
             self.config["pool_kwargs"] = {}
 
         conn_str = (
-            f"postgresql://{self.config['username']}:{self.config['password']}@{self.config['hostname']}:{self.config['port']}"
-            f"/{self.config['database']}?connect_timeout={self.connection_timeout}&application_name={self.name}"
+            f"postgresql://{quote(self.config['username'])}:{quote(self.config['password'])}"
+            f"@{self.config['hostname']}:{self.config['port']}"
+            f"/{quote(self.config['database'])}?connect_timeout={self.connection_timeout}"
+            f"&application_name={quote(self.name)}"
             f"&sslmode={self.config['ssl']}"
         )
         self.pool_async = AsyncConnectionPool(
@@ -705,20 +732,29 @@ class PgsqlWithPoolingAsync(DatabaseBackend):
 
         # Create new connection
         res = await self.new_connection()
-        if res:
-            (self.connection, self.cursor) = res
+        if not res:
+            raise ConnectionError("Failed to get a connection from the pool")
+
+        (self.connection, self.cursor) = res
 
     async def close(self) -> None:
         """Close connection by returning it to the pool"""
-
-        if self.cursor:
-            self.logger.debug("Closing cursor")
-            await self.cursor.close()
+        try:
+            if self.cursor:
+                self.logger.debug("Closing cursor")
+                await self.cursor.close()
+        except Exception as e:
+            self.logger.debug(f"Error while closing cursor: {e}")
+        finally:
             self.cursor = None
 
         if self.connection:
-            await self.return_connection(self.connection)
+            connection = self.connection
             self.connection = None
+            try:
+                await self.return_connection(connection)
+            except Exception as e:
+                self.logger.debug(f"Error while returning connection to the pool: {e}")
 
     async def new_connection(
         self,
@@ -751,7 +787,9 @@ class PgsqlWithPoolingAsync(DatabaseBackend):
                     await self.pool_async.putconn(connection)
 
                 self.logger.error(f"Error while getting connection from the pool: {e}")
-                self.shutdown_requested.wait(self.slow_down_timeout)
+                # Event.wait() would block the whole event loop; the loop condition
+                # re-checks shutdown_requested after the sleep
+                await asyncio.sleep(self.slow_down_timeout)
                 tries += 1
                 if tries >= 3:
                     break

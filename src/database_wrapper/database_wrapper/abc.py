@@ -1,7 +1,12 @@
 from collections.abc import Sequence
 from typing import Any, Literal, Protocol
 
-from psycopg.sql import Composable
+try:
+    # Only used in type hints; psycopg is a dependency of the pgsql adapter,
+    # not of the core package
+    from psycopg.sql import Composable
+except ImportError:
+    Composable = Any  # type: ignore[assignment,misc]
 
 Row = dict[str, Any]
 

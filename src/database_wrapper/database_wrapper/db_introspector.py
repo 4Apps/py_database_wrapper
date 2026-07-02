@@ -1,3 +1,5 @@
+import re
+import types
 from dataclasses import MISSING, dataclass, field, make_dataclass
 from dataclasses import fields as dc_fields
 from datetime import date, datetime
@@ -12,7 +14,8 @@ from .serialization import SerializeType
 def type_to_str(t: Any) -> str:
     """Render annotations like 'str | None' or 'RV4ProductionJobStatus | None'."""
     origin = get_origin(t)
-    if origin is Union:
+    # typing.Union and the `X | Y` UnionType are distinct origins before Python 3.14
+    if origin is Union or origin is types.UnionType:
         args = list(get_args(t))
         # Optional[T] -> Union[T, NoneType]
         if type(None) in args and len(args) == 2:
@@ -31,12 +34,17 @@ def _make_enum(name: str, labels: list[str]) -> Enum:
     # Normalize labels to valid identifiers
     members = {}
     for raw in labels:
-        key = raw.upper().replace(" ", "_")
+        key = re.sub(r"\W", "_", raw.upper())
         # avoid starting with digit
-        if key and key[0].isdigit():
+        if not key or key[0].isdigit():
             key = f"_{key}"
+        # avoid collisions after normalization (e.g. "a b" and "a_b")
+        if key in members:
+            key = f"{key}_{len(members)}"
         members[key] = raw
-    return Enum(name, members)
+    # module="enum" marks this as dynamically created so render_dataclass_source
+    # embeds it in the generated file instead of emitting a bogus import
+    return Enum(name, members, module="enum")
 
 
 @dataclass(frozen=True)
@@ -128,10 +136,7 @@ class DBIntrospector:
                 py_type, serialize = self.map_db_type(c.db_type)
 
             # Optional typing if nullable
-            if c.is_nullable:
-                ann: type[py_type] | None = py_type
-            else:
-                ann = py_type
+            ann: Any = py_type | None if c.is_nullable else py_type
 
             # Default value choice
             default = None
@@ -144,7 +149,7 @@ class DBIntrospector:
                     default = py_type()  # 0, 0.0, ""
                 elif py_type is datetime:
                     default_factory = datetime.now
-                elif py_type is datetime.date:
+                elif py_type is date:
                     default_factory = date.today
                 elif enum_class:
                     # pick first enum value as default
@@ -185,7 +190,7 @@ class DBIntrospector:
                 )
             )
 
-        # Build class with properties schemaName/tableName
+        # Build class with properties schema_name/table_name
         # We’ll generate methods dynamically and attach.
         cls = make_dataclass(
             class_name,
@@ -197,15 +202,16 @@ class DBIntrospector:
             repr=True,
         )
 
-        # Attach schemaName/tableName as properties
-        def _schemaName(self) -> str:
+        # Attach schema_name/table_name as properties - these are what
+        # DBWrapper reads when building queries
+        def _schema_name(self) -> str:
             return schema
 
-        def _tableName(self) -> str:
+        def _table_name(self) -> str:
             return table
 
-        cls.schemaName = property(_schemaName)
-        cls.tableName = property(_tableName)
+        cls.schema_name = property(_schema_name)
+        cls.table_name = property(_table_name)
 
         return cls
 
@@ -260,7 +266,7 @@ class DBIntrospector:
         lines: list[str] = []
         # Imports
         lines.append("from typing import Any, Optional")
-        lines.append("from datetime import datetime")
+        lines.append("from datetime import date, datetime, time")
         lines.append("from dataclasses import dataclass, field")
         lines.append("")
         lines.append("from database_wrapper import MetadataDict, DBDefaultsDataModel, SerializeType")
@@ -290,11 +296,11 @@ class DBIntrospector:
         lines.append('    """Auto-generated from database schema"""')
         lines.append("")
         lines.append("    @property")
-        lines.append("    def schemaName(self) -> str:")
+        lines.append("    def schema_name(self) -> str:")
         lines.append(f"        return {schema!r}")
         lines.append("")
         lines.append("    @property")
-        lines.append("    def tableName(self) -> str:")
+        lines.append("    def table_name(self) -> str:")
         lines.append(f"        return {table!r}")
         lines.append("")
 
@@ -360,6 +366,9 @@ class DBIntrospector:
         lines.append("        # Explicitly list each field (stable order)")
         for f in dc_fields(cls):
             md: MetadataDict = dict(f.metadata) if f.metadata else {}
+            if md.get("exclude", False):
+                continue
+
             serialize = md.get("serialize")
             key = f.name
             if serialize == SerializeType.DATETIME:

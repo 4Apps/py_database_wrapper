@@ -12,6 +12,12 @@ class DBWrapperSqlite(DBWrapper):
     db_cursor: SqliteTypedDictCursor | None
     """ SQLite cursor object """
 
+    placeholder = "?"
+    """ sqlite3 uses qmark paramstyle """
+
+    insert_returning = False
+    """ RETURNING requires SQLite >= 3.35; use lastrowid instead """
+
     #######################
     ### Class lifecycle ###
     #######################
@@ -73,4 +79,4 @@ class DBWrapperSqlite(DBWrapper):
     def limit_query(self, offset: int = 0, limit: int = 100) -> str | None:
         if limit == 0:
             return None
-        return f"LIMIT {limit} OFFSET {offset}"
+        return f"LIMIT {int(limit)} OFFSET {int(offset)}"

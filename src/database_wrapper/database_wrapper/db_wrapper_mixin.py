@@ -1,7 +1,11 @@
 import logging
+import re
 from typing import Any, cast
 
 from .common import DataModelType, NoParam, OrderByItem
+
+# Plain identifiers, optionally dot-qualified (schema.table, alias.column)
+IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$")
 
 
 class DBWrapperMixin:
@@ -25,6 +29,12 @@ class DBWrapperMixin:
     # logger
     logger: Any
     """Logger object"""
+
+    placeholder: str = "%s"
+    """Parameter placeholder used by the underlying driver (paramstyle)."""
+
+    insert_returning: bool = True
+    """Whether INSERT supports a RETURNING clause to fetch the new id."""
 
     #######################
     ### Class lifecycle ###
@@ -55,7 +65,8 @@ class DBWrapperMixin:
         """
         Deallocates the instance of the DBWrapper class.
         """
-        self.logger.debug("Dealloc")
+        if hasattr(self, "logger"):
+            self.logger.debug("Dealloc")
 
         # Force remove instances so that there are no circular references
         if hasattr(self, "db_cursor") and self.db_cursor:
@@ -84,6 +95,25 @@ class DBWrapperMixin:
     ### Helper methods ###
     ######################
 
+    def validate_identifier(self, name: str) -> str:
+        """
+        Validates that the given name is a safe SQL identifier.
+
+        Identifiers (table names, column names, filter and order-by keys) are
+        interpolated into queries directly, so anything beyond plain
+        (optionally dot-qualified) identifiers is rejected to prevent SQL injection.
+
+        Args:
+            name (str): The identifier to validate.
+
+        Returns:
+            str: The validated identifier.
+        """
+        if not isinstance(name, str) or not IDENTIFIER_PATTERN.match(name):
+            raise ValueError(f"Invalid SQL identifier: {name!r}")
+
+        return name
+
     def make_identifier(self, schema: str | None, name: str) -> Any:
         """
         Creates a SQL identifier object from the given name.
@@ -95,7 +125,9 @@ class DBWrapperMixin:
         Returns:
             str: The created SQL identifier object.
         """
+        self.validate_identifier(name)
         if schema:
+            self.validate_identifier(schema)
             return f"{schema}.{name}"
 
         return name
@@ -170,8 +202,27 @@ class DBWrapperMixin:
         if order_by is None:
             return None
 
-        order_list = [f"{item[0]} {item[1] if len(item) > 1 and item[1] is not None else 'ASC'}" for item in order_by]
+        order_list = [f"{self.validate_identifier(item[0])} {self.order_direction(item)}" for item in order_by]
         return "ORDER BY {}".format(", ".join(order_list))
+
+    def order_direction(self, item: tuple[str, str | None] | tuple[str]) -> str:
+        """
+        Extracts and validates the sort direction from an order-by item.
+
+        Args:
+            item (tuple): The order-by item (column, direction).
+
+        Returns:
+            str: "ASC" or "DESC".
+        """
+        if len(item) < 2 or item[1] is None:
+            return "ASC"
+
+        direction = str(item[1]).upper()
+        if direction not in ("ASC", "DESC"):
+            raise ValueError(f"Invalid sort direction: {item[1]!r}")
+
+        return direction
 
     def limit_query(self, offset: int = 0, limit: int = 100) -> Any | None:
         """
@@ -187,42 +238,51 @@ class DBWrapperMixin:
         if limit == 0:
             return None
 
-        return f"LIMIT {limit} OFFSET {offset}"
+        return f"LIMIT {int(limit)} OFFSET {int(offset)}"
 
     def format_filter(self, key: str, filter: Any) -> tuple[Any, ...]:
+        self.validate_identifier(key)
+        ph = self.placeholder
+
         if type(filter) is dict:
             if "$contains" in filter:
                 return (
-                    f"{key} LIKE %s",
+                    f"{key} LIKE {ph}",
                     f"%{filter['$contains']}%",
                 )
             elif "$starts_with" in filter:
-                return (f"{key} LIKE %s", f"{filter['$starts_with']}%")
+                return (f"{key} LIKE {ph}", f"{filter['$starts_with']}%")
             elif "$ends_with" in filter:
-                return (f"{key} LIKE %s", f"%{filter['$ends_with']}")
+                return (f"{key} LIKE {ph}", f"%{filter['$ends_with']}")
             elif "$min" in filter and "$max" not in filter:
-                return (f"{key} >= %s", filter["$min"])
+                return (f"{key} >= {ph}", filter["$min"])
             elif "$max" in filter and "$min" not in filter:
-                return (f"{key} <= %s", filter["$max"])
+                return (f"{key} <= {ph}", filter["$max"])
             elif "$min" in filter and "$max" in filter:
-                return (f"{key} BETWEEN %s AND %s", filter["$min"], filter["$max"])
+                return (f"{key} BETWEEN {ph} AND {ph}", filter["$min"], filter["$max"])
             elif "$in" in filter:
                 in_filter_1: list[Any] = cast(list[Any], filter["$in"])
-                return (f"{key} IN (%s)" % ",".join(["%s"] * len(in_filter_1)),) + tuple(in_filter_1)
+                if not in_filter_1:
+                    # Empty IN list matches nothing
+                    return ("1 = 0",)
+                return (f"{key} IN ({', '.join([ph] * len(in_filter_1))})",) + tuple(in_filter_1)
             elif "$not_in" in filter:
                 in_filter_2: list[Any] = cast(list[Any], filter["$not_in"])
-                return (f"{key} NOT IN (%s)" % ",".join(["%s"] * len(in_filter_2)),) + tuple(in_filter_2)
+                if not in_filter_2:
+                    # Empty NOT IN list matches everything
+                    return ("1 = 1",)
+                return (f"{key} NOT IN ({', '.join([ph] * len(in_filter_2))})",) + tuple(in_filter_2)
             elif "$not" in filter:
-                return (f"{key} != %s", filter["$not"])
+                return (f"{key} != {ph}", filter["$not"])
 
             elif "$gt" in filter:
-                return (f"{key} > %s", filter["$gt"])
+                return (f"{key} > {ph}", filter["$gt"])
             elif "$gte" in filter:
-                return (f"{key} >= %s", filter["$gte"])
+                return (f"{key} >= {ph}", filter["$gte"])
             elif "$lt" in filter:
-                return (f"{key} < %s", filter["$lt"])
+                return (f"{key} < {ph}", filter["$lt"])
             elif "$lte" in filter:
-                return (f"{key} <= %s", filter["$lte"])
+                return (f"{key} <= {ph}", filter["$lte"])
             elif "$is_null" in filter:
                 return (f"{key} IS NULL",)
             elif "$is_not_null" in filter:
@@ -230,7 +290,7 @@ class DBWrapperMixin:
 
             raise NotImplementedError("Filter type not supported")
         elif isinstance(filter, (bool, str, int, float)):
-            return (f"{key} = %s", filter)
+            return (f"{key} = {ph}", filter)
         else:
             raise NotImplementedError(f"Filter type not supported: {key} = {type(filter)}")
 
@@ -269,9 +329,13 @@ class DBWrapperMixin:
         keys = store_data.keys()
         values = list(store_data.values())
 
-        columns = ", ".join(keys)
-        values_placeholder = ", ".join(["%s"] * len(values))
-        return f"INSERT INTO {table_identifier} ({columns}) VALUES ({values_placeholder}) RETURNING {return_key}"
+        columns = ", ".join(self.validate_identifier(key) for key in keys)
+        values_placeholder = ", ".join([self.placeholder] * len(values))
+        query = f"INSERT INTO {table_identifier} ({columns}) VALUES ({values_placeholder})"
+        if self.insert_returning:
+            query += f" RETURNING {return_key}"
+
+        return query
 
     def _format_update_query(
         self,
@@ -280,12 +344,12 @@ class DBWrapperMixin:
         update_data: dict[str, Any],
     ) -> Any:
         keys = update_data.keys()
-        set_clause = ", ".join(f"{key} = %s" for key in keys)
-        return f"UPDATE {table_identifier} SET {set_clause} WHERE {update_key} = %s"
+        set_clause = ", ".join(f"{self.validate_identifier(key)} = {self.placeholder}" for key in keys)
+        return f"UPDATE {table_identifier} SET {set_clause} WHERE {update_key} = {self.placeholder}"
 
     def _format_delete_query(
         self,
         table_identifier: Any,
         delete_key: Any,
     ) -> Any:
-        return f"DELETE FROM {table_identifier} WHERE {delete_key} = %s"
+        return f"DELETE FROM {table_identifier} WHERE {delete_key} = {self.placeholder}"

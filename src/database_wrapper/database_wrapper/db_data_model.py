@@ -161,6 +161,9 @@ class DBDataModel:
         for field_name, value in pairs:
             class_field = self.__dataclass_fields__.get(field_name, None)
             if class_field is None:
+                # asdict() also calls this factory for nested dataclasses whose
+                # fields are not on this model - pass them through unfiltered
+                new_dict[field_name] = value
                 continue
 
             metadata = cast(MetadataDict, class_field.metadata)

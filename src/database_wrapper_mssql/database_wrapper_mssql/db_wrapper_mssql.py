@@ -88,6 +88,34 @@ class DBWrapperMssql(DBWrapper):
             return None
 
         return f"""
-            OFFSET {offset} ROWS
-            FETCH NEXT {limit} ROWS ONLY
+            OFFSET {int(offset)} ROWS
+            FETCH NEXT {int(limit)} ROWS ONLY
         """
+
+    def _format_filter_query(
+        self,
+        query: Any,
+        q_filter: Any,
+        order: Any,
+        limit: Any,
+    ) -> Any:
+        # T-SQL requires ORDER BY when OFFSET/FETCH is used
+        if limit and not order:
+            order = "ORDER BY (SELECT NULL)"
+
+        return super()._format_filter_query(query, q_filter, order, limit)
+
+    def _format_insert_query(
+        self,
+        table_identifier: Any,
+        store_data: dict[str, Any],
+        return_key: Any,
+    ) -> Any:
+        keys = store_data.keys()
+
+        columns = ", ".join(self.validate_identifier(key) for key in keys)
+        values_placeholder = ", ".join([self.placeholder] * len(store_data))
+        # T-SQL has no RETURNING; OUTPUT INSERTED needs the bare column name, not a qualified one
+        id_column = str(return_key).rsplit(".", 1)[-1]
+
+        return f"INSERT INTO {table_identifier} ({columns}) OUTPUT INSERTED.{id_column} VALUES ({values_placeholder})"

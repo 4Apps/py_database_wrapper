@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextvars import ContextVar
 from threading import Event
@@ -267,11 +268,23 @@ class RedisDb(KVDbBase):
                 self.logger.error(f"{logBuffer}ERR ({e})")
                 self.shutdown_requested.wait(self.timeout)
                 tries += 1
-                if tries > 3:
+                if tries > self.config["instant_retries"]:
                     raise
                 continue
 
         raise Exception("Cancelled connection creation")
+
+    def close(self) -> None:
+        """
+        Close connection to the database.
+        """
+        try:
+            if self._connection:
+                self._connection.close()
+        except Exception as e:
+            self.logger.debug(f"Error while closing connection: {e}")
+        finally:
+            self._connection = None
 
 
 class RedisDbAsync(KVDbBase):
@@ -331,9 +344,11 @@ class RedisDbAsync(KVDbBase):
                     await redis_conn.close()
 
                 self.logger.error(f"ERR ({e})", extra={"clean": True})
-                self.shutdown_requested.wait(self.timeout)
+                # Event.wait() would block the whole event loop; the loop condition
+                # re-checks shutdown_requested after the sleep
+                await asyncio.sleep(self.timeout)
                 tries += 1
-                if tries > 3:
+                if tries > self.config["instant_retries"]:
                     raise
                 continue
 
@@ -412,7 +427,7 @@ class RedisDbWithPool(KVDbBase):
                 self.logger.error(f"{logBuffer}ERR ({e})")
                 self.shutdown_requested.wait(self.timeout)
                 tries += 1
-                if tries > 3:
+                if tries > self.config["instant_retries"]:
                     raise
                 continue
 
@@ -491,9 +506,11 @@ class RedisDbWithPoolAsync(KVDbBase):
                     await redis_conn.close()
 
                 self.logger.error(f"ERR ({e})", extra={"clean": True})
-                self.shutdown_requested.wait(self.timeout)
+                # Event.wait() would block the whole event loop; the loop condition
+                # re-checks shutdown_requested after the sleep
+                await asyncio.sleep(self.timeout)
                 tries += 1
-                if tries > 3:
+                if tries > self.config["instant_retries"]:
                     raise
                 continue
 

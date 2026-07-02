@@ -52,6 +52,10 @@ class Sqlite(DatabaseBackend):
     ##################
 
     def open(self) -> None:
+        # Free resources
+        if hasattr(self, "connection") and self.connection:
+            self.close()
+
         self.logger.debug("Connecting to DB")
 
         if "kwargs" not in self.config:
@@ -60,9 +64,9 @@ class Sqlite(DatabaseBackend):
         # Default timeout to 5.0 seconds if not specified
         timeout = self.config.get("timeout", 5.0)
 
-        # Default isolation_level to None (autocommit mode via library, though SQLite is tricky with this)
-        # or leave as default. Let's respect config or default to standard.
-        isolation_level = self.config.get("isolation_level", None)
+        # sqlite3's standard default is "" (deferred transactions); None would mean
+        # autocommit, silently turning commit()/rollback() into no-ops
+        isolation_level = self.config.get("isolation_level", "")
 
         self.connection = sqlite3.connect(
             self.config["database"],

@@ -1,4 +1,5 @@
 import psycopg
+from psycopg.rows import dict_row
 
 from database_wrapper import ColumnMetaIntrospector, DBIntrospector
 
@@ -53,7 +54,8 @@ class PostgresIntrospector(DBIntrospector):
           END AS enum_labels
         FROM cols;
         """
-        with self.conn.cursor() as cur:
+        # Explicit row factory - the default psycopg cursor returns tuples
+        with self.conn.cursor(row_factory=dict_row) as cur:
             cur.execute(q, (schema, table))
             rows = cur.fetchall()
 
@@ -66,7 +68,7 @@ class PostgresIntrospector(DBIntrospector):
                     is_nullable=bool(row["is_nullable"]),
                     has_default=(row["default_expr"] is not None),
                     default_expr=row["default_expr"],
-                    # enum_labels=list(row["enum_labels"]) if row["enum_labels"] else None,
+                    enum_labels=list(row["enum_labels"]) if row["enum_labels"] else None,
                 )
             )
 

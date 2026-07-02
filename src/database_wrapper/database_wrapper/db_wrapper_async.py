@@ -38,7 +38,7 @@ class DBWrapperAsync(DBWrapperMixin):
         id_value = empty_data_class.id_value
         if not id_key:
             raise ValueError("Id key is not set")
-        if not id_value:
+        if id_value is None:
             raise ValueError("Id value is not set")
 
         # Get the record
@@ -124,7 +124,7 @@ class DBWrapperAsync(DBWrapperMixin):
         _filter = None
 
         # TODO: Rewrite this so that filter method with loop is not used here
-        if id_key and id_value:
+        if id_key and id_value is not None:
             (_filter, _params) = self.create_filter({id_key: id_value})
 
         # Order and limit
@@ -225,12 +225,14 @@ class DBWrapperAsync(DBWrapperMixin):
         # Insert
         await self.db_cursor.execute(insert_query, tuple(values))
         affected_rows = self.db_cursor.rowcount
-        result = await self.db_cursor.fetchone()
 
-        return (
-            result[id_key] if result and id_key in result else 0,
-            affected_rows,
-        )
+        if self.insert_returning:
+            result = await self.db_cursor.fetchone()
+            new_id = result[id_key] if result and id_key in result else 0
+        else:
+            new_id = self.db_cursor.lastrowid or 0
+
+        return (new_id, affected_rows)
 
     @overload
     async def insert(self, records: DataModelType) -> tuple[int, int]: ...
@@ -363,7 +365,7 @@ class DBWrapperAsync(DBWrapperMixin):
             update_data = row.update_data()
             update_id_key = row.id_key
             update_id_value = row.id_value
-            if not update_data or not update_id_key or not update_id_value:
+            if not update_data or not update_id_key or update_id_value is None:
                 continue
 
             status.append(
@@ -391,8 +393,10 @@ class DBWrapperAsync(DBWrapperMixin):
         update_id_key: str | None = None,
         update_id_value: Any = None,
     ) -> int:
-        update_id_key = update_id_key or record.id_key
-        update_id_value = update_id_value or record.id_value
+        if update_id_key is None:
+            update_id_key = record.id_key
+        if update_id_value is None:
+            update_id_value = record.id_value
         status = await self._update(
             record,
             record.schema_name,
@@ -467,7 +471,7 @@ class DBWrapperAsync(DBWrapperMixin):
         for row in records:
             delete_id_key = row.id_key
             delete_id_value = row.id_value
-            if not delete_id_key or not delete_id_value:
+            if not delete_id_key or delete_id_value is None:
                 continue
 
             status.append(

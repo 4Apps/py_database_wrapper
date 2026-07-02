@@ -12,6 +12,9 @@ class DBWrapperMysql(DBWrapper):
     db_cursor: MysqlTypedDictCursor | None
     """ MySQL cursor object """
 
+    insert_returning = False
+    """ MySQL has no INSERT ... RETURNING (MariaDB only); use lastrowid instead """
+
     #######################
     ### Class lifecycle ###
     #######################
@@ -73,4 +76,4 @@ class DBWrapperMysql(DBWrapper):
     def limit_query(self, offset: int = 0, limit: int = 100) -> str | None:
         if limit == 0:
             return None
-        return f"LIMIT {offset},{limit}"
+        return f"LIMIT {int(offset)},{int(limit)}"

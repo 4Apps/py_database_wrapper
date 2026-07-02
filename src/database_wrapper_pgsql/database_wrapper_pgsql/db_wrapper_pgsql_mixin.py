@@ -73,7 +73,8 @@ class DBWrapperPgsqlMixin:
         order_list = [
             sql.SQL("{} {}").format(
                 sql.Identifier(item[0]),
-                sql.SQL(item[1] if len(item) > 1 and item[1] is not None else "ASC"),
+                # order_direction (from DBWrapperMixin via MRO) validates against ASC/DESC
+                sql.SQL(self.order_direction(item)),  # type: ignore[attr-defined]
             )
             for item in order_by
         ]

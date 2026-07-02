@@ -34,8 +34,8 @@ class Mysql(DatabaseBackend):
 
     Defaults:
         port = 0 - See comment below
-        charset = utf8
-        collation = utf8_general_ci
+        charset = utf8mb4
+        collation = utf8mb4_general_ci
     """
 
     config: MysqlConfig
@@ -56,11 +56,12 @@ class Mysql(DatabaseBackend):
         if "port" not in self.config or not self.config["port"]:
             self.config["port"] = 0
 
+        # utf8 is an alias for utf8mb3, which cannot store 4-byte characters (e.g. emoji)
         if "charset" not in self.config or not self.config["charset"]:
-            self.config["charset"] = "utf8"
+            self.config["charset"] = "utf8mb4"
 
         if "collation" not in self.config or not self.config["collation"]:
-            self.config["collation"] = "utf8_general_ci"
+            self.config["collation"] = "utf8mb4_general_ci"
 
         if "kwargs" not in self.config or not self.config["kwargs"]:
             self.config["kwargs"] = {}
