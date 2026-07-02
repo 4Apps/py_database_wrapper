@@ -104,11 +104,17 @@ class DatabaseBackend:
         self.close_pool()
 
         # Clean just in case
-        del self.connection
-        del self.cursor
+        if hasattr(self, "connection"):
+            del self.connection
 
-        del self.pool
-        del self.pool_async
+        if hasattr(self, "cursor"):
+            del self.cursor
+
+        if hasattr(self, "pool"):
+            del self.pool
+
+        if hasattr(self, "pool_async"):
+            del self.pool_async
 
     ###############
     ### Context ###

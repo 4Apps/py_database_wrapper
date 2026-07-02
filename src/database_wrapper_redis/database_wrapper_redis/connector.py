@@ -297,7 +297,8 @@ class RedisDbAsync(KVDbBase):
         self.logger.debug("Dealloc")
 
         # Just to be sure as async does not have __del__
-        del self._connection
+        if hasattr(self, "_connection"):
+            del self._connection
 
     async def new_connection(self) -> RedisClientAsync:
         tries = 0
@@ -468,8 +469,11 @@ class RedisDbWithPoolAsync(KVDbBase):
         self.logger.debug("Dealloc")
 
         # Just to be sure as async does not have __del__
-        del self._connection
-        del self.pool
+        if hasattr(self, "_connection"):
+            del self._connection
+
+        if hasattr(self, "pool"):
+            del self.pool
 
     async def new_connection(self) -> RedisClientAsync:
         tries = 0

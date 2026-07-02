@@ -74,7 +74,8 @@ class DBWrapperMixin:
         """
 
         if db_cursor is None:
-            del self.db_cursor
+            if hasattr(self, "db_cursor"):
+                del self.db_cursor
             return
 
         self.db_cursor = db_cursor

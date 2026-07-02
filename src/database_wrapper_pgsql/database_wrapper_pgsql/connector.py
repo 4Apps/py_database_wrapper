@@ -181,8 +181,11 @@ class PgsqlAsync(DatabaseBackend):
         """Destructor"""
 
         # Just to be sure as async does not have __del__
-        del self.cursor
-        del self.connection
+        if hasattr(self, "cursor"):
+            del self.cursor
+
+        if hasattr(self, "connection"):
+            del self.connection
 
     async def open(self) -> None:
         # Free resources
@@ -666,9 +669,14 @@ class PgsqlWithPoolingAsync(DatabaseBackend):
 
     def __del__(self) -> None:
         """Destructor"""
-        del self.cursor
-        del self.connection
-        del self.pool_async
+        if hasattr(self, "cursor"):
+            del self.cursor
+
+        if hasattr(self, "connection"):
+            del self.connection
+
+        if hasattr(self, "pool_async"):
+            del self.pool_async
 
     ##################
     ### Connection ###
