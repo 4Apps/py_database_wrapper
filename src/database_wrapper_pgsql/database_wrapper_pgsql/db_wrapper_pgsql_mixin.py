@@ -2,7 +2,7 @@ from typing import Any
 
 from psycopg import sql
 
-from database_wrapper import NoParam, OrderByItem
+from database_wrapper import NoParam, OrderByItem, RawSQL
 
 
 class DBWrapperPgsqlMixin:
@@ -72,7 +72,8 @@ class DBWrapperPgsqlMixin:
 
         order_list = [
             sql.SQL("{} {}").format(
-                sql.Identifier(item[0]),
+                # RawSQL keys are trusted expressions; Identifier would quote them as one name
+                sql.SQL(item[0]) if isinstance(item[0], RawSQL) else sql.Identifier(item[0]),
                 # order_direction (from DBWrapperMixin via MRO) validates against ASC/DESC
                 sql.SQL(self.order_direction(item)),  # type: ignore[attr-defined]
             )

@@ -516,12 +516,14 @@ class PgsqlWithPooling(DatabaseBackend):
     ) -> tuple[PgConnectionType | None, PgCursorType | None]:
         """Context manager"""
 
-        # Lets set the context var so that it is set even if we fail to get connection
-        self.context_connection.set(None)
-
+        # Connections are kept in a per-context stack so that nested
+        # context managers each get and return their own connection.
+        # A failed connection pushes None to keep push/pop balanced.
         res = self.new_connection()
+        stack = self.context_connection.get() or ()
+        self.context_connection.set(stack + (res,))
+
         if res:
-            self.context_connection.set(res)
             return res
 
         return (
@@ -532,12 +534,12 @@ class PgsqlWithPooling(DatabaseBackend):
     def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
         """Context manager"""
 
-        test_data = self.context_connection.get()
-        if test_data:
-            self.return_connection(test_data[0])
-
-        # Reset context
-        self.context_connection.set(None)
+        stack = self.context_connection.get() or ()
+        if stack:
+            entry = stack[-1]
+            self.context_connection.set(stack[:-1])
+            if entry:
+                self.return_connection(entry[0])
 
     ####################
     ### Transactions ###
@@ -819,12 +821,14 @@ class PgsqlWithPoolingAsync(DatabaseBackend):
     ) -> tuple[PgConnectionTypeAsync | None, PgCursorTypeAsync | None]:
         """Context manager"""
 
-        # Lets set the context var so that it is set even if we fail to get connection
-        self.context_connection_async.set(None)
-
+        # Connections are kept in a per-context stack so that nested
+        # context managers each get and return their own connection.
+        # A failed connection pushes None to keep push/pop balanced.
         res = await self.new_connection()
+        stack = self.context_connection_async.get() or ()
+        self.context_connection_async.set(stack + (res,))
+
         if res:
-            self.context_connection_async.set(res)
             return res
 
         return (
@@ -835,12 +839,12 @@ class PgsqlWithPoolingAsync(DatabaseBackend):
     async def __aexit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
         """Context manager"""
 
-        test_data = self.context_connection_async.get()
-        if test_data:
-            await self.return_connection(test_data[0])
-
-        # Reset context
-        self.context_connection_async.set(None)
+        stack = self.context_connection_async.get() or ()
+        if stack:
+            entry = stack[-1]
+            self.context_connection_async.set(stack[:-1])
+            if entry:
+                await self.return_connection(entry[0])
 
     ####################
     ### Transactions ###

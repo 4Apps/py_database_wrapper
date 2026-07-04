@@ -2,7 +2,7 @@ import logging
 import re
 from typing import Any, cast
 
-from .common import DataModelType, NoParam, OrderByItem
+from .common import DataModelType, NoParam, OrderByItem, RawSQL
 
 # Plain identifiers, optionally dot-qualified (schema.table, alias.column)
 IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$")
@@ -103,12 +103,17 @@ class DBWrapperMixin:
         interpolated into queries directly, so anything beyond plain
         (optionally dot-qualified) identifiers is rejected to prevent SQL injection.
 
+        Wrap trusted expressions in RawSQL to bypass validation deliberately.
+
         Args:
             name (str): The identifier to validate.
 
         Returns:
             str: The validated identifier.
         """
+        if isinstance(name, RawSQL):
+            return name
+
         if not isinstance(name, str) or not IDENTIFIER_PATTERN.match(name):
             raise ValueError(f"Invalid SQL identifier: {name!r}")
 

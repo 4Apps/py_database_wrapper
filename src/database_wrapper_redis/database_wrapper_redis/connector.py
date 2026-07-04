@@ -147,36 +147,42 @@ class KVDbBase:
     def __enter__(self) -> RedisClient:
         self.logger.debug("Creating redis connection")
 
+        # Connections are kept in a per-context stack so that nested
+        # context managers each get and close their own connection
         connection = self.new_connection()
-        self.context_connection.set(connection)
+        stack = self.context_connection.get() or ()
+        self.context_connection.set(stack + (connection,))
         return connection
 
     def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
         self.logger.debug("Releasing redis connection")
 
-        redis_conn = self.context_connection.get()
-        if redis_conn:
-            redis_conn.close()
-
-        # Reset context
-        self.context_connection.set(None)
+        stack = self.context_connection.get() or ()
+        if stack:
+            redis_conn = stack[-1]
+            self.context_connection.set(stack[:-1])
+            if redis_conn:
+                redis_conn.close()
 
     async def __aenter__(self) -> RedisClientAsync:
         self.logger.debug("Creating redis connection")
 
+        # Connections are kept in a per-context stack so that nested
+        # context managers each get and close their own connection
         connection = await self.new_connection()
-        self.context_connection.set(connection)
+        stack = self.context_connection.get() or ()
+        self.context_connection.set(stack + (connection,))
         return connection
 
     async def __aexit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
         self.logger.debug("Releasing redis connection")
 
-        redis_conn = self.context_connection.get()
-        if redis_conn:
-            await redis_conn.aclose()
-
-        # Reset context
-        self.context_connection.set(None)
+        stack = self.context_connection.get() or ()
+        if stack:
+            redis_conn = stack[-1]
+            self.context_connection.set(stack[:-1])
+            if redis_conn:
+                await redis_conn.aclose()
 
     ###############
     ### Helpers ###
@@ -217,7 +223,7 @@ class KVDbBase:
 
 
 class RedisDb(KVDbBase):
-    context_connection: ContextVar[RedisClient | None]
+    context_connection: ContextVar[tuple[RedisClient, ...] | None]
 
     _connection: RedisClient
 
@@ -288,7 +294,7 @@ class RedisDb(KVDbBase):
 
 
 class RedisDbAsync(KVDbBase):
-    context_connection: ContextVar[RedisClientAsync | None]
+    context_connection: ContextVar[tuple[RedisClientAsync, ...] | None]
 
     _connection: RedisClientAsync | None
 
@@ -375,7 +381,7 @@ class RedisDbAsync(KVDbBase):
 
 class RedisDbWithPool(KVDbBase):
     pool: RedisConnectionPool
-    context_connection: ContextVar[RedisClient | None]
+    context_connection: ContextVar[tuple[RedisClient, ...] | None]
 
     _connection: RedisClient | None
 
@@ -446,7 +452,7 @@ class RedisDbWithPool(KVDbBase):
 
 class RedisDbWithPoolAsync(KVDbBase):
     pool: RedisConnectionPoolAsync
-    context_connection: ContextVar[RedisClientAsync | None]
+    context_connection: ContextVar[tuple[RedisClientAsync, ...] | None]
 
     _connection: RedisClientAsync | None
 

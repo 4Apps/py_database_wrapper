@@ -97,11 +97,15 @@ class DatabaseBackend:
 
     def __del__(self) -> None:
         """What to do when class is destroyed"""
-        self.logger.debug("Dealloc")
+        if hasattr(self, "logger"):
+            self.logger.debug("Dealloc")
 
-        # Clean up connections
-        self.close()
-        self.close_pool()
+        # Clean up connections; a partially initialized instance
+        # (failed __init__) may not have these attributes yet
+        if hasattr(self, "connection"):
+            self.close()
+        if hasattr(self, "pool") or hasattr(self, "pool_async"):
+            self.close_pool()
 
         # Clean just in case
         if hasattr(self, "connection"):

@@ -8,7 +8,7 @@ import logging
 
 from . import utils
 from .abc import ConnectionABC, ConnectionAsyncABC, CursorABC, CursorAsyncABC
-from .common import DataModelType, NoParam, OrderByItem
+from .common import DataModelType, NoParam, OrderByItem, RawSQL
 from .db_backend import DatabaseBackend
 from .db_data_model import DBDataModel, DBDefaultsDataModel, MetadataDict
 from .db_introspector import ColumnMetaIntrospector, DBIntrospector
@@ -38,6 +38,7 @@ __all__ = [
     "DataModelType",
     "OrderByItem",
     "NoParam",
+    "RawSQL",
     "utils",
     "SerializeType",
     "ignore_unknown_kwargs",
