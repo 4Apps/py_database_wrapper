@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "database_wrapper_mssql"
-version = "0.2.37"
+version = "0.2.38"
 description = "database_wrapper for Mssql database"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -32,7 +32,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 keywords = ["database", "wrapper", "python", "mssql", "sqlserver"]
-dependencies = ["database_wrapper == 0.2.37", "pymssql >= 2.2.10"]
+dependencies = ["database_wrapper == 0.2.38", "pymssql >= 2.2.10"]
 
 [project.urls]
 Homepage = "https://github.com/gintsmurans/py_database_wrapper"

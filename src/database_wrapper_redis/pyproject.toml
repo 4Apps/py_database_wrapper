@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "database_wrapper_redis"
-version = "0.2.37"
+version = "0.2.38"
 description = "database_wrapper for Redis database"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -32,7 +32,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 keywords = ["database", "wrapper", "python", "redis"]
-dependencies = ["database_wrapper == 0.2.37", "redis >= 8.0"]
+dependencies = ["database_wrapper == 0.2.38", "redis >= 8.0"]
 
 [project.urls]
 Homepage = "https://github.com/gintsmurans/py_database_wrapper"

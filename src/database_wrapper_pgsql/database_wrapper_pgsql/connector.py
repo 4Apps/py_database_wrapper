@@ -397,7 +397,10 @@ class PgsqlWithPooling(DatabaseBackend):
             max_lifetime=20 * 60,
             max_idle=400,
             timeout=self.connection_timeout,
-            reconnect_timeout=0,
+            # Validate connections on checkout and keep retrying to refill broken
+            # ones, so a transient DB/network stall can't permanently wedge the pool.
+            reconnect_timeout=300,
+            check=ConnectionPool.check_connection,
             num_workers=4,
             connection_class=PgConnectionType,
             kwargs=self.config["kwargs"],
@@ -689,7 +692,10 @@ class PgsqlWithPoolingAsync(DatabaseBackend):
             max_lifetime=20 * 60,
             max_idle=400,
             timeout=self.connection_timeout,
-            reconnect_timeout=0,
+            # Validate connections on checkout and keep retrying to refill broken
+            # ones, so a transient DB/network stall can't permanently wedge the pool.
+            reconnect_timeout=300,
+            check=AsyncConnectionPool.check_connection,
             num_workers=4,
             connection_class=PgConnectionTypeAsync,
             kwargs=self.config["kwargs"],
