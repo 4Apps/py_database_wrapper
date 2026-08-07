@@ -2,7 +2,7 @@
 database_wrapper package - Base for database wrappers
 """
 
-# Copyright 2024 Gints Murans
+# Copyright 2024 Gints Murāns
 
 import logging
 

@@ -1,87 +1,64 @@
-#!/bin/bash
+#!/usr/bin/env bash
+#
+# Bump the manual part of the version, the only part a human decides.
+#
+# Usage: scripts/bump_version.bash [major|minor]
+#
+# Reads and rewrites .version (format: X.Y), then restamps the six pyproject.toml files
+# and config.py to the new bare major.minor so a local editable install still resolves
+# against itself. Both are staged.
+#
+# There is no "patch" here on purpose: the patch is the git commit count, so it moves on
+# its own with every commit and is stamped at build time.
 
-####################
-### Bump version ###
-####################
+set -Eeuo pipefail
 
-# Define the files where the version should be replaced
-FILES_TO_UPDATE=(
-  "pyproject.toml"
-  "src/database_wrapper/pyproject.toml"
-  "src/database_wrapper_pgsql/pyproject.toml"
-  "src/database_wrapper_mysql/pyproject.toml"
-  "src/database_wrapper_mssql/pyproject.toml"
-  "src/database_wrapper_sqlite/pyproject.toml"
-  "src/database_wrapper_redis/pyproject.toml"
-  "src/database_wrapper/database_wrapper/config.py"
-)
+THIS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASE_PATH="$(cd "${THIS_DIR}/.." && pwd)"
 
-# Fail if any command fails
-set -e
+VERSION_FILE="${BASE_PATH}/.version"
+BUMP_TYPE="${1:-minor}"
 
-# Define usage
-usage() {
-  echo "Usage: $0 {major|minor|patch}"
-  exit 1
-}
-
-# Ensure an argument is passed
-if [ -z "$1" ]; then
-  usage
-fi
-
-# Load current version from .current_version file
-VERSION_FILE=".current_version"
 if [ ! -f "$VERSION_FILE" ]; then
-  echo "Error: $VERSION_FILE file not found!"
-  exit 1
+    echo "error: ${VERSION_FILE} not found" >&2
+    exit 1
 fi
 
-# Read the current version
-CURRENT_VERSION=$(cat $VERSION_FILE)
+CURRENT_VERSION="$(tr -d '[:space:]' < "$VERSION_FILE")"
 
-# Split the version into components (major, minor, patch)
-IFS='.' read -r -a VERSION_PARTS <<< "$CURRENT_VERSION"
-MAJOR=${VERSION_PARTS[0]}
-MINOR=${VERSION_PARTS[1]}
-PATCH=${VERSION_PARTS[2]}
+if [[ ! "$CURRENT_VERSION" =~ ^[0-9]+\.[0-9]+$ ]]; then
+    echo "error: ${VERSION_FILE} must be major.minor - found \"${CURRENT_VERSION}\"" >&2
+    exit 1
+fi
 
-# Determine which part of the version to bump
-case "$1" in
-  major)
-    MAJOR=$((MAJOR + 1))
-    MINOR=0
-    PATCH=0
-    ;;
-  minor)
-    MINOR=$((MINOR + 1))
-    PATCH=0
-    ;;
-  patch)
-    PATCH=$((PATCH + 1))
-    ;;
-  *)
-    usage
-    ;;
+MAJOR="${CURRENT_VERSION%%.*}"
+MINOR="${CURRENT_VERSION##*.}"
+
+case "$BUMP_TYPE" in
+    major)
+        MAJOR=$((MAJOR + 1))
+        MINOR=0
+        ;;
+    minor)
+        MINOR=$((MINOR + 1))
+        ;;
+    patch)
+        echo "error: the patch is the git commit count and bumps itself - commit instead" >&2
+        exit 1
+        ;;
+    *)
+        echo "error: unknown bump type \"${BUMP_TYPE}\". Use: major, minor" >&2
+        exit 1
+        ;;
 esac
 
-# New version after bumping
-NEW_VERSION="$MAJOR.$MINOR.$PATCH"
-echo "Bumping version: $CURRENT_VERSION -> $NEW_VERSION"
+NEW_VERSION="${MAJOR}.${MINOR}"
 
-# Replace the version in the specified files
-for FILE in "${FILES_TO_UPDATE[@]}"; do
-  if [ -f "$FILE" ]; then
-    echo "Updating version in $FILE"
-    sed -i "s/$CURRENT_VERSION/$NEW_VERSION/g" "$FILE"
-    git add "$FILE"
-  else
-    echo "Warning: $FILE not found!"
-  fi
-done
-
-# Update the version in .current_version file
 echo "$NEW_VERSION" > "$VERSION_FILE"
-git add "$VERSION_FILE"
-echo "Version bumped to $NEW_VERSION"
-echo
+"${THIS_DIR}/set_version.bash" "$NEW_VERSION"
+
+git -C "$BASE_PATH" add "$VERSION_FILE" "${BASE_PATH}"/src/*/pyproject.toml \
+    "${BASE_PATH}/src/database_wrapper/database_wrapper/config.py"
+
+echo "  Version bumped: ${CURRENT_VERSION} -> ${NEW_VERSION}"
+echo "  Next release would be $("${THIS_DIR}/version.bash")"

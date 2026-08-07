@@ -58,9 +58,9 @@ fi
 echo "Done"
 echo
 
-# Bump patch version
-echo "*Bumping patch version.. "
-./scripts/bump_version.bash patch
+# Record which commit the build came from. The version itself is not touched here: the
+# patch part is the git commit count, so it moves on its own and is stamped at build time.
+echo "*Updating commit info.. "
 ./scripts/update_commit_info.bash
 
 # Test for whitespace errors

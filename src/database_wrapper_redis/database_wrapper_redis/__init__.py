@@ -4,7 +4,7 @@ database_wrapper_redis package - Redis database wrapper
 Part of the database_wrapper package
 """
 
-# Copyright 2024 Gints Murans
+# Copyright 2024 Gints Murāns
 
 import logging
 

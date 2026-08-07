@@ -48,11 +48,39 @@ pip install -e ".[dev]"
 pip install -e src/database_wrapper_pgsql/
 ```
 
-### Version Bumping
+### Versioning
+
+`major.minor` is manual and lives in `.version`; the patch part is the git commit count,
+stamped by CI at build time. All six packages share the one number — they are released in
+lockstep and pin each other exactly.
 
 ```bash
-bash scripts/bump_version.bash <major|minor|patch>
+scripts/version.bash              # what the current commit would publish as, e.g. 0.3.145
+scripts/version.bash --dev        # the develop-channel form, 0.3.145.dev0
+scripts/bump_version.bash minor   # bump and stage .version (and major; never patch)
+scripts/set_version.bash [VER]    # stamp a version into the workspace, ready to build
+scripts/release_tag.bash          # create v<version> for the current commit
 ```
+
+- `.version` — the only place the version is declared. The six `pyproject.toml` files and
+  `config.py` carry the bare `major.minor` so a local editable install of all six resolves
+  against itself; `set_version.bash` writes the full number in at build time and verifies
+  every version line and cross-package pin actually changed. That rewrite is workspace-only
+  and is never committed.
+- The release workflow runs it after checking the tag matches the derived version, then
+  asserts the six wheel filenames before uploading. Checkout needs `fetch-depth: 0` or the
+  count is wrong, and `version.bash` refuses a shallow clone rather than reporting `.1`.
+- Nothing bumps the patch by hand, and the pre-commit hook no longer touches the version —
+  it only records the commit hash and date in `config.py`.
+
+The commit count only grows on a branch that is added to, but a rebase, a squash or a reset
+can shorten history and hand back a version below one already published — and **a version on
+PyPI can never be replaced, and a deleted one can never be re-uploaded**. `release_tag.bash`
+refuses to cut a tag that sorts below the newest existing one; the remedy is to bump the
+minor.
+
+Releasing: commit, `scripts/release_tag.bash`, `git push origin v<version>`, then create the
+GitHub release from that tag — that last step is what publishes all six packages.
 
 ## Architecture
 

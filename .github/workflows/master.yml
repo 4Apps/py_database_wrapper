@@ -1,9 +1,13 @@
+name: release
+
+# A GitHub release is the trigger, not a push. A version on PyPI is permanent - it cannot
+# be replaced, and a deleted one cannot be re-uploaded - so minting one stays a deliberate
+# act. Pushing the tag is safe; creating the release from it is the point of no return,
+# and here it mints all six packages at once.
 on:
   release:
     types:
     - published
-
-name: release
 
 jobs:
   pypi-publish:
@@ -16,13 +20,34 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          # scripts/version.bash derives the patch from the commit count, so it needs the
+          # full history - a shallow clone would silently produce version .1
+          fetch-depth: 0
+
+      # The tag is written by hand often enough to be worth checking against the derived
+      # value. A mismatch here means the tag and the wheels would disagree about what this
+      # release is, which nothing downstream can untangle afterwards.
+      - name: Resolve and verify version
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          VERSION="$(scripts/version.bash)"
+          if [ "$TAG" != "v${VERSION}" ]; then
+            echo "::error::tag ${TAG} does not match the derived version v${VERSION}." >&2
+            echo "Tags are created by scripts/release_tag.bash; delete this one and re-cut it." >&2
+            exit 1
+          fi
+          scripts/set_version.bash "$VERSION"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "Publishing database_wrapper $VERSION"
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
 
       - name: deps
-        run: python -m pip install -U build
+        run: python -m pip install -U build twine
 
       - name: build database_wrapper base
         run: python -m build src/database_wrapper
@@ -44,6 +69,25 @@ jobs:
 
       - name: Move all distributions to dist/
         run: mkdir -p dist && mv src/database_wrapper/dist/* dist/ && mv src/database_wrapper_pgsql/dist/* dist/ && mv src/database_wrapper_mysql/dist/* dist/ && mv src/database_wrapper_mssql/dist/* dist/ && mv src/database_wrapper_sqlite/dist/* dist/ && mv src/database_wrapper_redis/dist/* dist/
+
+      # Assert the filenames rather than trusting that the stamp landed. A package that
+      # built as the bare major.minor would upload as a version that can never be
+      # withdrawn, and the six have to go out as one set or not at all.
+      - name: Verify built versions
+        run: |
+          for package in database_wrapper database_wrapper_pgsql database_wrapper_mysql \
+                         database_wrapper_mssql database_wrapper_sqlite database_wrapper_redis; do
+            if [ ! -f "dist/${package}-${VERSION}-py3-none-any.whl" ]; then
+              echo "::error::expected dist/${package}-${VERSION}-py3-none-any.whl, built:" >&2
+              ls -1 dist >&2
+              exit 1
+            fi
+          done
+
+      # Catches a README that will not render on PyPI, which is otherwise only found out
+      # by the upload failing after the release has already been published
+      - name: Check distributions
+        run: twine check --strict dist/*
 
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1

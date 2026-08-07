@@ -4,7 +4,7 @@ database_wrapper_pgsql package - PostgreSQL database wrapper
 Part of the database_wrapper package
 """
 
-# Copyright 2024 Gints Murans
+# Copyright 2024 Gints Murāns
 
 import logging
 
