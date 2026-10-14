@@ -22,7 +22,7 @@ python3 -m unittest -v src/tests/test_sqlite.py
 python3 -m unittest -v src.tests.test_sqlite.TestSqlite.test_init
 ```
 
-SQLite tests always run (in-memory DB). Other integration tests require `TEST_CONNECTIONS=1` and running services via `docker-compose up`.
+SQLite tests always run (in-memory or temp-file DB). Other integration tests require `TEST_CONNECTIONS=1` and running services via `docker-compose up`.
 
 ### Linting & Type Checking
 
@@ -92,7 +92,7 @@ Each database adapter is a separate installable package under `src/`:
 - `database_wrapper_pgsql/` — PostgreSQL (psycopg3, supports async + connection pooling)
 - `database_wrapper_mysql/` — MySQL (mysqlclient)
 - `database_wrapper_mssql/` — MSSQL (pymssql)
-- `database_wrapper_sqlite/` — SQLite (stdlib)
+- `database_wrapper_sqlite/` — SQLite (stdlib `sqlite3`; async + `async with` pool on aiosqlite, autocommit with `BEGIN IMMEDIATE` transactions)
 - `database_wrapper_redis/` — Redis (redis-py)
 
 ### Class Hierarchy

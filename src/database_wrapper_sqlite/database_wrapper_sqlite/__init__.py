@@ -9,8 +9,17 @@ Part of the database_wrapper package
 import logging
 
 # from .db_wrapper_sqlite import DBWrapperSqlite
-from .connector import Sqlite, SqliteConfig, SqliteTypedDictCursor
+from .connector import (
+    Sqlite,
+    SqliteAsync,
+    SqliteConfig,
+    SqliteConnectionAsync,
+    SqliteTypedDictCursor,
+    SqliteTypedDictCursorAsync,
+    SqliteWithPoolingAsync,
+)
 from .db_wrapper_sqlite import DBWrapperSqlite
+from .db_wrapper_sqlite_async import DBWrapperSqliteAsync
 
 # Set the logger to a quiet default, can be enabled if needed
 logger = logging.getLogger("database_wrapper_sqlite")
@@ -21,10 +30,15 @@ if logger.level == logging.NOTSET:
 __all__ = [
     # Wrappers
     DBWrapperSqlite,
+    DBWrapperSqliteAsync,
     # Connectors
     Sqlite,
+    SqliteAsync,
+    SqliteWithPoolingAsync,
     # Connection and Cursor types
+    SqliteConnectionAsync,
     SqliteTypedDictCursor,
+    SqliteTypedDictCursorAsync,
     # Helpers
     SqliteConfig,
 ]

@@ -34,7 +34,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 keywords = ["database", "wrapper", "python", "sqlite"]
-dependencies = ["database_wrapper == 0.3"]
+dependencies = ["database_wrapper == 0.3", "aiosqlite"]
 
 [project.urls]
 Homepage = "https://github.com/4Apps/py_database_wrapper"
