@@ -8,6 +8,8 @@ releases before v0.2.31 are only in the git history.
 
 ## Unreleased
 
+## v0.4.0 - 2026-10-27
+
 - Versioning: the patch counts releases within a minor (0.4.0, 0.4.1, ...) instead of all commits
 - Dependencies: SQLite requires `aiosqlite >= 0.17.0`
 
