@@ -59,7 +59,7 @@ echo "Done"
 echo
 
 # Record which commit the build came from. The version itself is not touched here: the
-# patch part is the git commit count, so it moves on its own and is stamped at build time.
+# patch part comes from the release tags and is stamped at build time.
 echo "*Updating commit info.. "
 ./scripts/update_commit_info.bash
 

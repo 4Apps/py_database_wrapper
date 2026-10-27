@@ -48,39 +48,62 @@ pip install -e ".[dev]"
 pip install -e src/database_wrapper_pgsql/
 ```
 
+### Dependencies
+
+Adapter `pyproject.toml` files hold floors for driver dependencies, each clear of published
+security advisories (a cap only for a known breaking major - an upper bound there binds every
+downstream project), plus the exact `database_wrapper` pin. Dev tools are minor-pinned.
+
+### Changelog
+
+Every user-visible change adds one line under `## Unreleased` in `CHANGELOG.md`, in the same
+change. One line each - no paragraphs, no file lists, no rationale; that belongs in the commit
+message. Prefix `**Breaking:**` when a downstream project must act. Refactors and tests get none.
+One changelog covers all six packages; name the adapter when an entry is about one.
+
 ### Versioning
 
-`major.minor` is manual and lives in `.version`; the patch part is the git commit count,
-stamped by CI at build time. All six packages share the one number — they are released in
-lockstep and pin each other exactly.
+`major.minor` is manual and lives in `.version`. The patch counts releases within that minor
+(`0.4.0`, `0.4.1`, ...) and is read off the `v<major.minor>.<patch>` tags - never stored, never
+bumped by hand. All six packages share the one number — they are released in lockstep and pin
+each other exactly.
 
 ```bash
-scripts/version.bash              # what the current commit would publish as, e.g. 0.3.145
-scripts/version.bash --dev        # the develop-channel form, 0.3.145.dev0
-scripts/bump_version.bash minor   # bump and stage .version (and major; never patch)
+scripts/version.bash              # what the current commit would publish as, e.g. 0.4.1
+scripts/version.bash --dev        # next patch + commits since the newest tag, 0.4.1.dev3
+scripts/bump_version.bash minor   # bump and stage .version and the bare pins (or major)
 scripts/set_version.bash [VER]    # stamp a version into the workspace, ready to build
+scripts/changelog.bash prepare    # rename "## Unreleased" to the next version, dated
+scripts/changelog.bash notes TAG  # print that section, the GitHub release body
 scripts/release_tag.bash          # create v<version> for the current commit
 ```
 
+- `version.bash` — a commit carrying a release tag of the current minor prints that version,
+  any other commit the next patch. Needs tags and full history (`fetch-depth: 0`); refuses a
+  shallow clone.
 - `.version` — the only place the version is declared. The six `pyproject.toml` files and
   `config.py` carry the bare `major.minor` so a local editable install of all six resolves
   against itself; `set_version.bash` writes the full number in at build time and verifies
   every version line and cross-package pin actually changed. That rewrite is workspace-only
   and is never committed.
-- The release workflow runs it after checking the tag matches the derived version, then
-  asserts the six wheel filenames before uploading. Checkout needs `fetch-depth: 0` or the
-  count is wrong, and `version.bash` refuses a shallow clone rather than reporting `.1`.
-- Nothing bumps the patch by hand, and the pre-commit hook no longer touches the version —
-  it only records the commit hash and date in `config.py`.
+- The release workflow checks the tag matches the derived version, stamps it, then asserts the
+  six wheel filenames before uploading.
+- The pre-commit hook does not touch the version — it only records the commit hash and date in
+  `config.py`.
+- `release_tag.bash` refuses a commit that is already released, a version without a changelog
+  section, and a tag sorting below the newest existing one (remedy: bump the minor).
 
-The commit count only grows on a branch that is added to, but a rebase, a squash or a reset
-can shorten history and hand back a version below one already published — and **a version on
-PyPI can never be replaced, and a deleted one can never be re-uploaded**. `release_tag.bash`
-refuses to cut a tag that sorts below the newest existing one; the remedy is to bump the
-minor.
+**A version on PyPI can never be replaced, and a deleted one can never be re-uploaded.**
+Release numbers come from tags, so a rebase, squash or merge commit cannot shift them.
 
-Releasing: commit, `scripts/release_tag.bash`, `git push origin v<version>`, then create the
-GitHub release from that tag — that last step is what publishes all six packages.
+Releasing — the last step is what publishes all six packages:
+
+```bash
+scripts/changelog.bash prepare    # Unreleased -> v0.4.0; commit CHANGELOG.md
+scripts/release_tag.bash          # creates v0.4.0 locally
+git push origin v0.4.0            # publishes nothing
+scripts/changelog.bash notes v0.4.0 | gh release create v0.4.0 --title v0.4.0 --notes-file -
+```
 
 ## Architecture
 

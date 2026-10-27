@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "database_wrapper"
-# Major.minor only; the patch is the git commit count, stamped at build time by
+# Major.minor only; the patch comes from the release tags, stamped at build time by
 # scripts/set_version.bash. See scripts/version.bash for what the next release is.
-version = "0.3"
+version = "0.4"
 description = "A Different Approach to Database Wrappers in Python"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -48,27 +48,28 @@ dependencies = []
 [project.urls]
 Homepage = "https://github.com/4Apps/py_database_wrapper"
 Documentation = "https://github.com/4Apps/py_database_wrapper"
-Changes = "https://github.com/4Apps/py_database_wrapper"
+Changes = "https://github.com/4Apps/py_database_wrapper/blob/master/CHANGELOG.md"
 Code = "https://github.com/4Apps/py_database_wrapper"
 "Issue Tracker" = "https://github.com/4Apps/py_database_wrapper/issues"
 Download = "https://pypi.org/project/database_wrapper/"
 
 [project.optional-dependencies]
-pgsql = ["database_wrapper_pgsql == 0.3"]
-mysql = ["database_wrapper_mysql == 0.3"]
-mssql = ["database_wrapper_mssql == 0.3"]
-sqlite = ["database_wrapper_sqlite == 0.3"]
-redis = ["database_wrapper_redis == 0.3"]
+pgsql = ["database_wrapper_pgsql == 0.4"]
+mysql = ["database_wrapper_mysql == 0.4"]
+mssql = ["database_wrapper_mssql == 0.4"]
+sqlite = ["database_wrapper_sqlite == 0.4"]
+redis = ["database_wrapper_redis == 0.4"]
 all = ["database_wrapper[pgsql,mysql,mssql,sqlite,redis]"]
+# Tools are minor-pinned: a new ruff, pyrefly or codespell minor changes what fails the build
 dev = [
     # Development
     "ast-comments >= 1.1.2",
-    "codespell >= 2.2",
-    "build >= 1.2.1",
+    "codespell == 2.4.*",
+    "build == 1.6.*",
 
     # Formatting
-    "pyrefly",
-    "ruff",
+    "pyrefly == 1.4.*",
+    "ruff == 0.17.*",
 
     # Type hints
     "types-setuptools >= 61.0.0",

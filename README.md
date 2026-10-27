@@ -14,6 +14,8 @@ pip install database_wrapper[sqlite] # TODO: for sqlite
 pip install database_wrapper[redis] # for redis
 ```
 
+All six packages share one version; what changed in each release is in [CHANGELOG.md](CHANGELOG.md).
+
 ## Usage
 
 General usage is the same for all databases. The only difference is the import statement and the class name.

@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "database_wrapper_mysql"
-# Major.minor only; the patch is the git commit count, stamped at build time by
+# Major.minor only; the patch comes from the release tags, stamped at build time by
 # scripts/set_version.bash. See scripts/version.bash for what the next release is.
-version = "0.3"
+version = "0.4"
 description = "database_wrapper for MySQL database"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -34,12 +34,14 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 keywords = ["database", "wrapper", "python", "mysql", "mariadb"]
-dependencies = ["database_wrapper == 0.3", "mysqlclient >= 2.2.2"]
+# Floors only, no cap: an upper bound binds every project installing this package. Each
+# floor clears all published security advisories; the database_wrapper pin is exact on purpose.
+dependencies = ["database_wrapper == 0.4", "mysqlclient >= 2.2.2"]
 
 [project.urls]
 Homepage = "https://github.com/4Apps/py_database_wrapper"
 Documentation = "https://github.com/4Apps/py_database_wrapper"
-Changes = "https://github.com/4Apps/py_database_wrapper"
+Changes = "https://github.com/4Apps/py_database_wrapper/blob/master/CHANGELOG.md"
 Code = "https://github.com/4Apps/py_database_wrapper"
 "Issue Tracker" = "https://github.com/4Apps/py_database_wrapper/issues"
 Download = "https://pypi.org/project/database_wrapper/"

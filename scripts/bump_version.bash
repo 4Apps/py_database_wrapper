@@ -8,8 +8,8 @@
 # and config.py to the new bare major.minor so a local editable install still resolves
 # against itself. Both are staged.
 #
-# There is no "patch" here on purpose: the patch is the git commit count, so it moves on
-# its own with every commit and is stamped at build time.
+# There is no "patch" here on purpose: the patch is read off the release tags, so the new
+# minor's first release is .0 and nothing has to be stored for it.
 
 set -Eeuo pipefail
 
@@ -43,7 +43,7 @@ case "$BUMP_TYPE" in
         MINOR=$((MINOR + 1))
         ;;
     patch)
-        echo "error: the patch is the git commit count and bumps itself - commit instead" >&2
+        echo "error: the patch comes from the release tags - run scripts/release_tag.bash instead" >&2
         exit 1
         ;;
     *)

@@ -2,15 +2,15 @@
 #
 # Stamp a version into the workspace, ready to build.
 #
-# The repo carries a bare major.minor everywhere (version = "0.2", "database_wrapper == 0.2")
+# The repo carries a bare major.minor everywhere (version = "0.4", "database_wrapper == 0.4")
 # so a local editable install of all six packages resolves against itself. The published
-# patch number is derived from the commit count, so it exists only at build time - this
+# patch number is derived from the release tags, so it exists only at build time - this
 # script writes it in. CI runs it right before `python -m build`; the rewrite is
 # workspace-only and is never committed.
 #
 # Usage: scripts/set_version.bash [VERSION]
 #
-#   VERSION   Defaults to scripts/version.bash output, e.g. 0.2.145.
+#   VERSION   Defaults to scripts/version.bash output, e.g. 0.4.1.
 #
 # Rewrites, across all six packages:
 #   src/*/pyproject.toml  - the project version and every database_wrapper* == pin
@@ -18,7 +18,7 @@
 #
 # The cross-package pins are exact on purpose: an adapter subclasses core internals, so a
 # mismatched pair is not a combination that was ever tested. A pin left unstamped would
-# publish 0.2.145 packages requiring "database_wrapper == 0.2", which resolves to nothing
+# publish 0.4.1 packages requiring "database_wrapper == 0.4", which resolves to nothing
 # on PyPI - so this verifies its own work and fails loudly rather than shipping that.
 
 set -Eeuo pipefail
@@ -31,7 +31,7 @@ CONFIG_FILE="${BASE_PATH}/src/database_wrapper/database_wrapper/config.py"
 VERSION="${1:-$("${THIS_DIR}/version.bash")}"
 
 if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?(\.dev[0-9]+)?$ ]]; then
-    echo "error: \"${VERSION}\" is not a version this project publishes (0.2, 0.2.145, 0.2.145.dev0)" >&2
+    echo "error: \"${VERSION}\" is not a version this project publishes (0.4, 0.4.1, 0.4.1.dev3)" >&2
     exit 1
 fi
 
