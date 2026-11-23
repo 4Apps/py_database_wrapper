@@ -20,6 +20,7 @@ from .connector import (
     Pgsql,
     PgsqlAsync,
     PgsqlConfig,
+    PgsqlPassword,
     PgsqlWithPooling,
     PgsqlWithPoolingAsync,
 )
@@ -52,5 +53,6 @@ __all__ = [
     PgDictRow,
     # Helpers
     PgsqlConfig,
+    PgsqlPassword,
     PostgresIntrospector,
 ]

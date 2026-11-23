@@ -1,5 +1,6 @@
 import asyncio
-from collections.abc import AsyncIterator, Iterator
+import inspect
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
 from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
 from typing import Any, NotRequired, TypedDict, cast
@@ -23,11 +24,16 @@ PgConnectionTypeAsync = PgConnectionAsync[PgDictRow]
 PgCursorTypeAsync = PgCursorAsync[PgDictRow]
 
 
+PgsqlPassword = str | Callable[[], str] | Callable[[], Awaitable[str]]
+""" A password, or a callable called for every new connection - a short-lived token never goes stale in the pool.
+Async callables work with the async classes only. """
+
+
 class PgsqlConfig(TypedDict):
     hostname: str
     port: NotRequired[int]
     username: str
-    password: str
+    password: PgsqlPassword
     database: str
     ssl: NotRequired[str]
     kwargs: NotRequired[dict[str, Any]]
@@ -35,6 +41,40 @@ class PgsqlConfig(TypedDict):
     # Connection Pooling
     maxconnections: int
     pool_kwargs: NotRequired[dict[str, Any]]
+
+
+def _resolve_password(password: PgsqlPassword) -> str:
+    if not callable(password):
+        return password
+
+    resolved = password()
+    if inspect.isawaitable(resolved):
+        if inspect.iscoroutine(resolved):
+            resolved.close()
+        raise TypeError("An async password callable needs an async PostgreSQL class")
+
+    return resolved
+
+
+async def _resolve_password_async(password: PgsqlPassword) -> str:
+    if not callable(password):
+        return password
+
+    resolved = password()
+    if inspect.isawaitable(resolved):
+        return await resolved
+
+    return resolved
+
+
+def _pool_conninfo(config: PgsqlConfig, password: str, connection_timeout: int, application_name: str) -> str:
+    return (
+        f"postgresql://{quote(config['username'])}:{quote(password)}"
+        f"@{config['hostname']}:{config['port']}"
+        f"/{quote(config['database'])}?connect_timeout={connection_timeout}"
+        f"&application_name={quote(application_name)}"
+        f"&sslmode={config['ssl']}"
+    )
 
 
 class Pgsql(DatabaseBackend):
@@ -90,7 +130,7 @@ class Pgsql(DatabaseBackend):
                 port=self.config["port"],
                 sslmode=self.config["ssl"],
                 user=self.config["username"],
-                password=self.config["password"],
+                password=_resolve_password(self.config["password"]),
                 dbname=self.config["database"],
                 connect_timeout=self.connection_timeout,
                 row_factory=PgDictRowFactory,
@@ -213,7 +253,7 @@ class PgsqlAsync(DatabaseBackend):
             port=self.config["port"],
             sslmode=self.config["ssl"],
             user=self.config["username"],
-            password=self.config["password"],
+            password=await _resolve_password_async(self.config["password"]),
             dbname=self.config["database"],
             connect_timeout=self.connection_timeout,
             row_factory=PgDictRowFactory,
@@ -382,15 +422,13 @@ class PgsqlWithPooling(DatabaseBackend):
         if "pool_kwargs" not in self.config or not self.config["pool_kwargs"]:
             self.config["pool_kwargs"] = {}
 
-        conn_str = (
-            f"postgresql://{quote(self.config['username'])}:{quote(self.config['password'])}"
-            f"@{self.config['hostname']}:{self.config['port']}"
-            f"/{quote(self.config['database'])}?connect_timeout={self.connection_timeout}"
-            f"&application_name={quote(self.name)}"
-            f"&sslmode={self.config['ssl']}"
-        )
+        password = self.config["password"]
+        conninfo: str | Callable[[], str] = self._conninfo
+        if not callable(password):
+            conninfo = _pool_conninfo(self.config, password, self.connection_timeout, self.name)
+
         self.pool = ConnectionPool(
-            conn_str,
+            conninfo,
             open=False,
             min_size=2,
             max_size=self.config["maxconnections"],
@@ -406,6 +444,10 @@ class PgsqlWithPooling(DatabaseBackend):
             kwargs=self.config["kwargs"],
             **self.config["pool_kwargs"],
         )
+
+    def _conninfo(self) -> str:
+        password = _resolve_password(self.config["password"])
+        return _pool_conninfo(self.config, password, self.connection_timeout, self.name)
 
     ##################
     ### Connection ###
@@ -677,15 +719,13 @@ class PgsqlWithPoolingAsync(DatabaseBackend):
         if "pool_kwargs" not in self.config or not self.config["pool_kwargs"]:
             self.config["pool_kwargs"] = {}
 
-        conn_str = (
-            f"postgresql://{quote(self.config['username'])}:{quote(self.config['password'])}"
-            f"@{self.config['hostname']}:{self.config['port']}"
-            f"/{quote(self.config['database'])}?connect_timeout={self.connection_timeout}"
-            f"&application_name={quote(self.name)}"
-            f"&sslmode={self.config['ssl']}"
-        )
+        password = self.config["password"]
+        conninfo: str | Callable[[], Awaitable[str]] = self._conninfo
+        if not callable(password):
+            conninfo = _pool_conninfo(self.config, password, self.connection_timeout, self.name)
+
         self.pool_async = AsyncConnectionPool(
-            conn_str,
+            conninfo,
             open=False,
             min_size=2,
             max_size=self.config["maxconnections"],
@@ -712,6 +752,10 @@ class PgsqlWithPoolingAsync(DatabaseBackend):
 
         if hasattr(self, "pool_async"):
             del self.pool_async
+
+    async def _conninfo(self) -> str:
+        password = await _resolve_password_async(self.config["password"])
+        return _pool_conninfo(self.config, password, self.connection_timeout, self.name)
 
     ##################
     ### Connection ###

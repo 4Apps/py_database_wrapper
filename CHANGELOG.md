@@ -8,6 +8,9 @@ releases before v0.2.31 are only in the git history.
 
 ## Unreleased
 
+- PostgreSQL: `password` may be a callable (async too, for the async classes) resolved for every new connection, e.g. an Entra token
+- Dependencies: PostgreSQL requires `psycopg-pool >= 3.3.0`
+
 ## v0.4.0 - 2026-10-27
 
 - Versioning: the patch counts releases within a minor (0.4.0, 0.4.1, ...) instead of all commits

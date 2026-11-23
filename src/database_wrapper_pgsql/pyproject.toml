@@ -39,7 +39,7 @@ keywords = ["database", "wrapper", "python", "postgresql", "pgsql"]
 dependencies = [
     "database_wrapper == 0.4",
     "psycopg[binary] >= 3.2.0",
-    "psycopg[pool] >= 3.2.0",
+    "psycopg-pool >= 3.3.0",
 ]
 
 [project.urls]
